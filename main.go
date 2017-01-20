@@ -5,27 +5,35 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+
+	homedir "github.com/mitchellh/go-homedir"
 )
 
 var (
-	pathPrefix = "/home/steve/.beame/v2/ptxwfwqz364tp0wq.v1.p.beameio.net/"
-	endpoint   = "https://ieoateielwkqnbuw.tl5h1ipgobrdqsj6.v1.p.beameio.net"
+	endpoint = "https://ieoateielwkqnbuw.tl5h1ipgobrdqsj6.v1.p.beameio.net"
 
-	register = endpoint + "/api/v1/node/register"
+	registerSuffix = "/api/v1/node/register"
 )
 
 func main() {
-	client, err := Client()
+	var fqdn string
+	flag.StringVar(&fqdn, "fqdn", "", "FQDN of client cert to use")
+	flag.Parse()
+
+	client, err := Client(fqdn)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	resp, err := client.Get(endpoint)
+	registerURL := endpoint + registerSuffix
+
+	// Empty POST body
+	resp, err := client.Post(registerURL, "application/json", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,32 +48,35 @@ func main() {
 	// Find parent cred
 }
 
-// Connect to HTTPS server using client cert
-func Client() (*http.Client, error) {
-	// Load client cert
-	cert, err := tls.LoadX509KeyPair("selfsigned.crt", "selfsigned.key")
+// Client returns an HTTP client that uses the client cert for the
+// given FQDN
+func Client(fqdn string) (*http.Client, error) {
+	prefix, err := homedir.Expand("~/.beame/v2/" + fqdn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error expanding fqdn cert path: %v", err)
 	}
 
-	// Load CA cert
-	caCert, err := ioutil.ReadFile("../secure-server/selfsigned.crt")
+	cert, err := tls.LoadX509KeyPair(prefix+"/x509.pem",
+		prefix+"/private_key.pem")
 	if err != nil {
 		return nil, err
 	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
 
 	// Setup HTTPS client
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      caCertPool,
+		Certificates:  []tls.Certificate{cert},
+		Renegotiation: tls.RenegotiateFreelyAsClient,
 	}
 	tlsConfig.BuildNameToCertificate()
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
 	client := &http.Client{Transport: transport}
 
 	return client, nil
+}
+
+// RegisterPost represents the payload POSTed to the Beame server to
+// register a new device. (The response is a ...)
+type TokenRegisterPost struct {
 }
 
 type Cred struct {
