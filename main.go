@@ -225,7 +225,7 @@ func main() {
 
 	postdata, _ := json.Marshal(post)
 
-	log.Printf("POSTing the following to %s: `%s`\n", postURL, post)
+	log.Printf("POSTing the following to %s: `%s`\n", postURL, postdata)
 
 	req, _ := http.NewRequest("POST", postURL,
 		bytes.NewReader(postdata))
