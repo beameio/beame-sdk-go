@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -27,11 +28,19 @@ import (
 )
 
 var (
-	BaseURL    = "https://ieoateielwkqnbuw.tl5h1ipgobrdqsj6.v1.p.beameio.net"
-	BaseDNSURL = "https://lcram0sj9ox726l1.tl5h1ipgobrdqsj6.v1.p.beameio.net"
+	//
+	// Production server URLs
+	//
+	// BaseURL              = "https://ieoateielwkqnbuw.tl5h1ipgobrdqsj6.v1.p.beameio.net"
+	// BaseDNSURL           = "https://lcram0sj9ox726l1.tl5h1ipgobrdqsj6.v1.p.beameio.net"
+	// loadBalancerEndpoint = "https://ioigl3wzx6lajrx6.tl5h1ipgobrdqsj6.v1.p.beameio.net/instance"
 
-	loadBalancerEndpoint = "https://ioigl3wzx6lajrx6.tl5h1ipgobrdqsj6.v1.p.beameio.net/instance"
-
+	//
+	// Dev server URLs
+	//
+	BaseURL                = "https://prov-staging.beameio.net"
+	BaseDNSURL             = "https://t24w58ow5jkkmkhu.mpk3nobb568nycf5.v1.d.beameio.net"
+	loadBalancerEndpoint   = "https://may129m153e6emrn.bqnp2d2beqol13qn.v1.d.beameio.net/instance"
 	registerSuffix         = "/api/v1/node/register"
 	registerCompleteSuffix = "/api/v1/node/register/complete"
 	getDnsSuffix           = "/v1/dns/host/"
@@ -201,9 +210,11 @@ func main() {
 		Data:      fmt.Sprintf(`{"fqdn":"%s","value":"%s"}`, newFqdn, edgeFqdn),
 	}
 
-	tokenb, _ := json.Marshal(signedData)
+	signedDatab, _ := json.Marshal(&signedData)
 
-	hashed := sha256.Sum256(tokenb)
+	log.Printf("Doing SHA1 of: `%s`\n", signedDatab)
+
+	hashed := sha256.Sum256([]byte(signedDatab))
 
 	signedToken, err := rsa.SignPKCS1v15(rand.Reader, rsaKey, crypto.SHA256,
 		hashed[:])
@@ -213,25 +224,18 @@ func main() {
 
 	postURL := BaseDNSURL + getDnsSuffix + newFqdn
 
-	regFqdnDns := RegisterFqdnDns{
+	regFqdnDns := &RegisterFqdnDns{
 		SignedData: signedData,
 		SignedBy:   newFqdn,
 		Signature:  signedToken,
 	}
 
-	postdata, _ := json.Marshal(regFqdnDns)
+	postdata, _ := regFqdnDns.JSONStr()
 
 	log.Printf("POSTing the following to %s: `%s`\n", postURL, postdata)
 
-	req, _ := http.NewRequest("POST", postURL,
-		bytes.NewReader(postdata))
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	// req.Header.Set("X-BeameAuthToken", authTokenStr)
-
-	// Tell Beame's edgeFqdn to point newFqdn to my machine
-
-	resp4, err := http.DefaultClient.Do(req)
+	resp4, err := http.PostForm(postURL,
+		url.Values{"authToken": {postdata}})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -412,6 +416,14 @@ type RegisterFqdnDns struct {
 	SignedData *SignedData `json:"signedData"`
 	SignedBy   string      `json:"signedBy"`
 	Signature  []byte      `json:"signature"`
+}
+
+func (rfd *RegisterFqdnDns) JSONStr() (string, error) {
+	jsonb, err := json.Marshal(rfd)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonb), nil
 }
 
 type SignedData struct {
