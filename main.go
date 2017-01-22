@@ -8,7 +8,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
+	"crypto/sha1"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -27,10 +27,12 @@ import (
 )
 
 var (
-	BaseURL    = "https://ieoateielwkqnbuw.tl5h1ipgobrdqsj6.v1.p.beameio.net"
-	BaseDNSURL = "https://lcram0sj9ox726l1.tl5h1ipgobrdqsj6.v1.p.beameio.net"
+	// BaseURL    = "https://ieoateielwkqnbuw.tl5h1ipgobrdqsj6.v1.p.beameio.net"
+	// BaseDNSURL = "https://lcram0sj9ox726l1.tl5h1ipgobrdqsj6.v1.p.beameio.net"
+	BaseURL    = "https://prov-staging.beameio.net"
+	BaseDNSURL = "https://t24w58ow5jkkmkhu.mpk3nobb568nycf5.v1.d.beameio.net"
 
-	loadBalancerEndpoint = "https://ioigl3wzx6lajrx6.tl5h1ipgobrdqsj6.v1.p.beameio.net/instance"
+	loadBalancerEndpoint = "https://may129m153e6emrn.bqnp2d2beqol13qn.v1.d.beameio.net/instance"
 
 	registerSuffix         = "/api/v1/node/register"
 	registerCompleteSuffix = "/api/v1/node/register/complete"
@@ -198,14 +200,14 @@ func main() {
 	signedData := &SignedData{
 		CreatedAt: time.Now().Unix(),
 		ValidTill: time.Now().Unix() + int64(86400), // 1 day
-		Data:      fmt.Sprintf(`{"fqdn":"%s","value":"%s"}`, newFqdn, edgeFqdn),
+		Data:      map[string]string{"fqdn": newFqdn, "value": edgeFqdn},
 	}
 
 	tokenb, _ := json.Marshal(signedData)
 
-	hashed := sha256.Sum256(tokenb)
+	hashed := sha1.Sum(tokenb)
 
-	signedToken, err := rsa.SignPKCS1v15(rand.Reader, rsaKey, crypto.SHA256,
+	signedToken, err := rsa.SignPKCS1v15(rand.Reader, rsaKey, crypto.SHA1,
 		hashed[:])
 	if err != nil {
 		log.Fatalf("Error from rsaKey.Sign: %v\n", err)
@@ -219,9 +221,11 @@ func main() {
 		Signature:  signedToken,
 	}
 
-	postdata, _ := json.Marshal(regFqdnDns)
+	post := map[string]interface{}{"authToken": regFqdnDns}
 
-	log.Printf("POSTing the following to %s: `%s`\n", postURL, postdata)
+	postdata, _ := json.Marshal(post)
+
+	log.Printf("POSTing the following to %s: `%s`\n", postURL, post)
 
 	req, _ := http.NewRequest("POST", postURL,
 		bytes.NewReader(postdata))
@@ -415,7 +419,7 @@ type RegisterFqdnDns struct {
 }
 
 type SignedData struct {
-	CreatedAt int64  `json:"created_at"`
-	ValidTill int64  `json:"valid_till"`
-	Data      string `json:"data"`
+	CreatedAt int64             `json:"created_at"`
+	ValidTill int64             `json:"valid_till"`
+	Data      map[string]string `json:"data"`
 }
